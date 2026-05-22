@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 生物辨識開關</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f4f4f9; }
+        .btn { padding: 15px 30px; font-size: 18px; border: none; background-color: #007bff; color: white; border-radius: 25px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn:active { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <h2>ESP32 安全控制中心</h2>
+    <p>請點擊下方按鈕進行指紋/面孔驗證以開啟 LED</p>
+    <button class="btn" id="unlockBtn">生物辨識解鎖並開燈</button>
+
+<script>
+// 設定公共 MQTT 伺服器 (免帳號，支援 WSS 加密)
+const MQTT_BROKER = "wss://broker.emqx.io:8084/mqtt"; 
+// 請修改下方 UUID，使其成為你專屬的隱密通道（防止他人干擾）
+const MQTT_TOPIC = "myhome/esp32/secure_led_9f8a7b6c5ejgijaohgfhoefh4646gsgnj"; 
+const SECRET_KEY = "SuperSecretToken123"; // 自訂通訊金鑰
+
+document.getElementById('unlockBtn').addEventListener('click', async () => {
+    // 檢查瀏覽器是否支援生物辨識
+    if (!window.PublicKeyCredential) {
+        alert("此瀏覽器或裝置不支援 WebAuthn 生物辨識");
+        return;
+    }
+
+    try {
+        // 產生 WebAuthn 驗證請求 (相容 Android 與 iOS)
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const options = {
+            publicKey: {
+                challenge: challenge,
+                rp: { name: "GitHub Pages ESP32 Control" },
+                user: {
+                    id: new Uint8Array([1, 2, 3, 4]),
+                    name: "user@github.io",
+                    displayName: "ESP32 User"
+                },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256 演算法
+                timeout: 60000,
+                authenticatorSelection: { userVerification: "required" }
+            }
+        };
+
+        // 喚起手機原生指紋 / FaceID 視窗
+        const credential = await navigator.credentials.create(options);
+        
+        if (credential) {
+            console.log("生物辨識成功！發送加密指令...");
+            sendMqttCommand();
+        }
+    } catch (err) {
+        console.error(err);
+        alert("驗證失敗或已取消");
+    }
+});
+
+function sendMqttCommand() {
+    const clientId = 'web_' + Math.random().toString(16).substr(2, 8);
+    const client = mqtt.connect(MQTT_BROKER, { clientId: clientId });
+
+    client.on('connect', function () {
+        // 發送包含金鑰的 JSON 訊息
+        const payload = JSON.stringify({
+            auth: SECRET_KEY,
+            command: "ON"
+        });
+        client.publish(MQTT_TOPIC, payload, { qos: 1 });
+        alert("驗證成功，指令已發送！");
+        setTimeout(() => client.end(), 1000); // 發送後斷開連線
+    });
+
+    client.on('error', function (err) {
+        alert("MQTT 連線失敗: " + err);
+    });
+}
+</script>
+</body>
+</html>
