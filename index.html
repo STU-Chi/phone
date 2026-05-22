@@ -145,7 +145,10 @@ unlockBtn.addEventListener('click', async () => {
                 user: { id: new Uint8Array([1]), name: "user", displayName: "User" },
                 pubKeyCredParams: [{ type: "public-key", alg: -7 }],
                 timeout: 60000,
-                authenticatorSelection: { userVerification: "required" }
+                authenticatorSelection: { 
+                    authenticatorAttachment: "platform", // <--- 關鍵！強制使用本機設備 (指紋/FaceID)
+                    userVerification: "required"         // 強制要求驗證身份
+                }
             }
         });
 
@@ -168,7 +171,7 @@ unlockBtn.addEventListener('click', async () => {
         }
     } catch (err) {
         console.error(err);
-        alert("驗證取消或失敗。");
+        alert("驗證取消或失敗。請確認您的手機已設定指紋或密碼。");
     }
 });
 
